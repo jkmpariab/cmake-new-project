@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -e
+
+create_main_cpp () {
+	MAIN_FILE="main.cpp"
+	echo "creating '$(pwd)/$MAIN_FILE'..."
+	if pkg-config fmt ; then
+###################################################
+	cat >> $MAIN_FILE << EOF
+#include <fmt/printf.h>
+
+int main()
+{
+	fmt::print("Hello, world!\n");
+	return 0;
+}
+EOF
+###################################################
+	else
+###################################################
+	cat >> $MAIN_FILE << EOF
+#include <iostream>
+
+int main()
+{
+	std::cout << "Hello, world!" << std::endl;
+	return 0;
+}
+EOF
+###################################################
+	fi
+}
+
+create_cmakelists_txt () {
+	CMAKELISTS_FILENAME="CMakeLists.txt"
+	CMAKE_VERSION="$(cmake --version | head -n 1 | awk '{ printf $3 }')"
+	echo "creating '$(pwd)/$CMAKELISTS_FILENAME'..."
+	if pkg-config fmt ; then
+#####################################################################################
+	cat >> $CMAKELISTS_FILENAME << EOF
+cmake_minimum_required(VERSION $CMAKE_VERSION)
+
+project($PNAME VERSION 1.0.0)
+
+add_executable(main $MAIN_FILE)
+
+find_package(fmt REQUIRED)
+target_link_libraries(main PRIVATE fmt::fmt)
+EOF
+#####################################################################################
+	else
+#####################################################################################
+	cat >> $CMAKELISTS_FILENAME << EOF
+cmake_minimum_required(VERSION $CMAKE_VERSION)
+
+project($PNAME VERSION 1.0.0)
+
+add_executable(main $MAIN_FILE)
+EOF
+#####################################################################################
+	fi
+}
+
+read -p "Enter project name: " PNAME
+if [[ -z "$PNAME" ]]; then
+	echo "Error: specify a project name"
+	echo "Usage: $0 <project-name>"
+	echo 1
+fi
+
+read -p "Enter directory to serve project (default to project name): " PDIR
+if [[ -z "$PDIR" ]]; then
+	PDIR="$PNAME"
+fi
+
+echo "creating project '$PNAME' in '$(pwd)/$PDIR'..."
+mkdir -p -- "$PDIR"
+
+cd -- "$PDIR"
+
+# Call create_main_cpp function
+create_main_cpp
+
+# Call create_cmakelists_txt function
+create_cmakelists_txt
+
+BUILD_DIRNAME="build"
+mkdir -p -- $BUILD_DIRNAME
+echo "generate cmake build files..."
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 S . -B $BUILD_DIRNAME
+
+ln -rs "$BUILD_DIRNAME/compile_commands.json" .
+
+echo "Done!"
